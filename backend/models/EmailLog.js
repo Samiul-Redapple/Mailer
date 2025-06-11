@@ -7,6 +7,8 @@ const EmailLogSchema = new mongoose.Schema({
   body: { type: String, required: true },
   status: { type: String, enum: ['sent', 'failed'], required: true },
   error: { type: String, default: null },
+  hasAttachment: { type: Boolean, default: false },
+  attachmentName: { type: String, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

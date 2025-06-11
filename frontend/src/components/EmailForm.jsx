@@ -7,21 +7,30 @@ const EmailForm = () => {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [file, setFile] = useState(null);
+  const [attachment, setAttachment] = useState(null);
   const [status, setStatus] = useState('');
   const [fileName, setFileName] = useState('');
+  const [attachmentName, setAttachmentName] = useState('');
 
-  // Reference to the file input element
+  // References to the file input elements
   const fileInputRef = React.useRef();
+  const attachmentInputRef = React.useRef();
 
   const clearForm = () => {
     setEmails('');
     setSubject('');
     setBody('');
     setFile(null);
+    setAttachment(null);
     setFileName('');
-    // Reset the file input
+    setAttachmentName('');
+    
+    // Reset the file inputs
     if (fileInputRef && fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (attachmentInputRef && attachmentInputRef.current) {
+      attachmentInputRef.current.value = '';
     }
   };
 
@@ -37,12 +46,31 @@ const EmailForm = () => {
     }
   };
 
+  const handleAttachmentChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setAttachment(selectedFile);
+      setAttachmentName(selectedFile.name);
+    } else {
+      setAttachment(null);
+      setAttachmentName('');
+    }
+  };
+
   const handleManualInput = () => {
     setInputMethod('manual');
     setFile(null);
     setFileName('');
     if (fileInputRef && fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = () => {
+    setAttachment(null);
+    setAttachmentName('');
+    if (attachmentInputRef && attachmentInputRef.current) {
+      attachmentInputRef.current.value = '';
     }
   };
 
@@ -84,6 +112,12 @@ const EmailForm = () => {
       } else {
         formData.append('emails', emails);
       }
+      
+      // Add attachment if exists
+      if (attachment) {
+        formData.append('attachment', attachment);
+      }
+      
       formData.append('subject', subject);
       formData.append('body', body);
 
@@ -222,6 +256,48 @@ const EmailForm = () => {
             onChange={(e) => setBody(e.target.value)} 
             className="border p-2 w-full rounded min-h-[100px]"
           ></textarea>
+        </div>
+        
+        {/* Attachment Section */}
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="attachment">
+            Attachment (Optional)
+          </label>
+          <div className="flex items-center">
+            <input 
+              id="attachment"
+              type="file" 
+              ref={attachmentInputRef}
+              onChange={handleAttachmentChange}
+              className="hidden" 
+            />
+            <div className="flex-1 border rounded p-2 bg-gray-50 truncate">
+              {attachmentName || 'No attachment selected'}
+            </div>
+            <button 
+              type="button"
+              onClick={() => {
+                if (attachmentInputRef && attachmentInputRef.current) {
+                  attachmentInputRef.current.click();
+                }
+              }}
+              className="ml-2 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded"
+            >
+              Browse
+            </button>
+            {attachment && (
+              <button 
+                type="button"
+                onClick={removeAttachment}
+                className="ml-2 bg-red-100 hover:bg-red-200 text-red-700 py-2 px-4 rounded"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Supported file types: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, CSV, ZIP, JPG, JPEG, PNG, GIF
+          </p>
         </div>
         
         <div className="flex items-center justify-between">

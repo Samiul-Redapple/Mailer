@@ -4,26 +4,42 @@ const xlsx = require('xlsx');
 const transporter = require('../utils/mailer');
 const path = require('path');
 const fs = require('fs');
+const { cleanupAttachment } = require('../utils/uploadConfig');
 
 exports.sendBulkEmail = async (req, res) => {
   try {
     let emailList = [];
     let subject = req.body.subject;
     let body = req.body.body;
+    let attachmentFile = null;
+    let attachmentOriginalName = null;
+
+    // Check if there's an attachment
+    if (req.files && req.files.attachment && req.files.attachment.length > 0) {
+      attachmentFile = req.files.attachment[0];
+      attachmentOriginalName = attachmentFile.originalname;
+      console.log('Attachment received:', attachmentOriginalName);
+    }
 
     // Process the input based on whether it's a file or manual input
-    if (req.file) {
+    if (req.files && req.files.file && req.files.file.length > 0) {
       try {
-        console.log('Processing Excel file:', req.file.path);
+        const excelFile = req.files.file[0];
+        console.log('Processing Excel file:', excelFile.path);
         
         // Read the Excel file
-        const file = xlsx.readFile(req.file.path);
+        const file = xlsx.readFile(excelFile.path);
         const sheetName = file.SheetNames[0];
         const worksheet = file.Sheets[sheetName];
         const data = xlsx.utils.sheet_to_json(worksheet);
         
         // Check if the Excel file has the required 'Email' column
         if (data.length > 0 && !data[0].hasOwnProperty('Email')) {
+          // Clean up attachment if it exists
+          if (attachmentFile) {
+            cleanupAttachment(attachmentFile.path);
+          }
+          
           return res.status(400).json({ 
             error: 'Invalid Excel format. The first row must contain an "Email" column.' 
           });
@@ -58,7 +74,7 @@ exports.sendBulkEmail = async (req, res) => {
         
         // Delete the Excel file immediately after processing
         try {
-          fs.unlinkSync(req.file.path);
+          fs.unlinkSync(excelFile.path);
           console.log('Excel file deleted successfully');
         } catch (err) {
           console.error('Error deleting Excel file:', err);
@@ -68,6 +84,11 @@ exports.sendBulkEmail = async (req, res) => {
         emailList = extractedEmails;
         
       } catch (err) {
+        // Clean up attachment if it exists
+        if (attachmentFile) {
+          cleanupAttachment(attachmentFile.path);
+        }
+        
         console.error('Error processing Excel file:', err);
         return res.status(400).json({ error: 'Could not process the Excel file. Please check the format.' });
       }
@@ -98,11 +119,21 @@ exports.sendBulkEmail = async (req, res) => {
       
       emailList = manualEmails;
     } else {
+      // Clean up attachment if it exists
+      if (attachmentFile) {
+        cleanupAttachment(attachmentFile.path);
+      }
+      
       return res.status(400).json({ error: 'No emails provided. Please enter emails or upload an Excel file.' });
     }
     
     // Validate that we have emails to process
     if (emailList.length === 0) {
+      // Clean up attachment if it exists
+      if (attachmentFile) {
+        cleanupAttachment(attachmentFile.path);
+      }
+      
       return res.status(400).json({ error: 'No valid email addresses found.' });
     }
 
@@ -120,18 +151,33 @@ exports.sendBulkEmail = async (req, res) => {
             subject, 
             body, 
             status: 'failed', 
-            error: 'Invalid email format'
+            error: 'Invalid email format',
+            hasAttachment: !!attachmentFile,
+            attachmentName: attachmentOriginalName
           });
           continue;
         }
         
-        // Send the email
-        await transporter.sendMail({
+        // Prepare email options
+        const mailOptions = {
           from: process.env.EMAIL,
           to: email,
           subject,
           html: body,
-        });
+        };
+        
+        // Add attachment if it exists
+        if (attachmentFile) {
+          mailOptions.attachments = [
+            {
+              filename: attachmentOriginalName,
+              path: attachmentFile.path
+            }
+          ];
+        }
+        
+        // Send the email
+        await transporter.sendMail(mailOptions);
         
         // Update the EmailAddress lastUsed timestamp
         await EmailAddress.findOneAndUpdate(
@@ -145,7 +191,9 @@ exports.sendBulkEmail = async (req, res) => {
           email, 
           subject, 
           body, 
-          status: 'sent'
+          status: 'sent',
+          hasAttachment: !!attachmentFile,
+          attachmentName: attachmentOriginalName
         });
       } catch (err) {
         // Log failure
@@ -155,9 +203,16 @@ exports.sendBulkEmail = async (req, res) => {
           subject, 
           body, 
           status: 'failed', 
-          error: err.message
+          error: err.message,
+          hasAttachment: !!attachmentFile,
+          attachmentName: attachmentOriginalName
         });
       }
+    }
+    
+    // Clean up attachment after all emails are sent
+    if (attachmentFile) {
+      cleanupAttachment(attachmentFile.path);
     }
     
     // Return results to the client
@@ -170,6 +225,11 @@ exports.sendBulkEmail = async (req, res) => {
       }
     });
   } catch (err) {
+    // Clean up attachment if it exists and there was an error
+    if (req.files && req.files.attachment && req.files.attachment.length > 0) {
+      cleanupAttachment(req.files.attachment[0].path);
+    }
+    
     console.error('Server error:', err);
     res.status(500).json({ error: 'Server Error', message: err.message });
   }
