@@ -12,7 +12,7 @@ const Home = () => (
       <ol className="list-decimal pl-5 space-y-2 mb-4">
         <li>Choose between manual input or Excel file upload</li>
         <li>For manual input: Enter email addresses separated by commas</li>
-        <li>For Excel upload: The first row must have 'Email' as the field name, with email addresses starting from the second row</li>
+        <li>For Excel upload: The first row must have 'Email' as the field name, with email starting from the second row</li>
         <li>Write your email subject and body</li>
         <li>Click "Send Emails" to deliver your message</li>
       </ol>

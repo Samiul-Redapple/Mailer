@@ -46,8 +46,13 @@ const EmailForm = () => {
     }
   };
 
+  const [results, setResults] = useState(null);
+  const [showResults, setShowResults] = useState(false);
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setResults(null);
+    setShowResults(false);
     
     // Validation
     if (inputMethod === 'manual' && !emails.trim()) {
@@ -70,7 +75,7 @@ const EmailForm = () => {
       return;
     }
     
-    setStatus('Sending...');
+    setStatus('Sending emails... This may take a moment.');
     
     try {
       const formData = new FormData();
@@ -83,19 +88,34 @@ const EmailForm = () => {
       formData.append('body', body);
 
       const res = await axios.post('/emails/send', formData);
-      setStatus('Emails sent successfully!');
-      console.log(res.data);
+      
+      // Store results for display
+      setResults(res.data);
+      setShowResults(true);
+      
+      // Set success message with summary
+      const { summary } = res.data;
+      setStatus(`Success! Sent ${summary.sent} of ${summary.total} emails.`);
       
       // Clear all fields after successful submission
       clearForm();
       
-      // Clear status message after 3 seconds
-      setTimeout(() => {
-        setStatus('');
-      }, 3000);
+      // Don't auto-clear status when showing results
+      if (summary.failed === 0) {
+        // Only auto-clear if all emails were sent successfully
+        setTimeout(() => {
+          setStatus('');
+        }, 5000);
+      }
     } catch (error) {
-      setStatus('Error sending emails. Please try again.');
       console.error('Error:', error);
+      
+      // Handle specific error messages from the backend
+      if (error.response && error.response.data && error.response.data.error) {
+        setStatus(`Error: ${error.response.data.error}`);
+      } else {
+        setStatus('Error sending emails. Please try again.');
+      }
     }
   };
 
@@ -107,7 +127,7 @@ const EmailForm = () => {
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="p-6 bg-white rounded shadow w-full">
+      <form onSubmit={handleSubmit} className="p-6 bg-white rounded shadow w-full mb-4">
         <div className="mb-6">
           <div className="flex border rounded overflow-hidden">
             <button 
@@ -121,12 +141,7 @@ const EmailForm = () => {
               type="button" 
               onClick={() => {
                 setInputMethod('excel');
-                // Delay the click to ensure the ref is available
-                setTimeout(() => {
-                  if (fileInputRef && fileInputRef.current) {
-                    fileInputRef.current.click();
-                  }
-                }, 100);
+                // Don't automatically open file dialog
               }}
               className={`flex-1 py-2 px-4 text-center ${inputMethod === 'excel' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
             >
@@ -178,7 +193,7 @@ const EmailForm = () => {
                 Browse
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Upload an Excel file with email addresses</p>
+            <p className="text-xs text-gray-500 mt-1">Upload an Excel file with the first row containing an 'Email' column</p>
           </div>
         )}
         
@@ -218,6 +233,52 @@ const EmailForm = () => {
           </button>
         </div>
       </form>
+      
+      {/* Results Display */}
+      {showResults && results && (
+        <div className="bg-white rounded shadow p-6">
+          <h3 className="text-lg font-semibold mb-3">Email Sending Results</h3>
+          
+          <div className="flex mb-4">
+            <div className="bg-blue-100 p-3 rounded flex-1 text-center mr-2">
+              <div className="text-xl font-bold">{results.summary.total}</div>
+              <div className="text-sm text-gray-600">Total</div>
+            </div>
+            <div className="bg-green-100 p-3 rounded flex-1 text-center mr-2">
+              <div className="text-xl font-bold text-green-700">{results.summary.sent}</div>
+              <div className="text-sm text-gray-600">Sent</div>
+            </div>
+            <div className="bg-red-100 p-3 rounded flex-1 text-center">
+              <div className="text-xl font-bold text-red-700">{results.summary.failed}</div>
+              <div className="text-sm text-gray-600">Failed</div>
+            </div>
+          </div>
+          
+          {results.summary.failed > 0 && (
+            <div className="mt-4">
+              <h4 className="font-semibold mb-2">Failed Emails:</h4>
+              <div className="max-h-40 overflow-y-auto border rounded p-2">
+                <ul className="text-sm">
+                  {results.results
+                    .filter(item => item.status === 'failed')
+                    .map((item, index) => (
+                      <li key={index} className="mb-1 pb-1 border-b border-gray-100 last:border-0">
+                        <span className="font-medium">{item.email}</span>: {item.error}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          
+          <button 
+            onClick={() => setShowResults(false)} 
+            className="mt-4 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded w-full"
+          >
+            Hide Results
+          </button>
+        </div>
+      )}
     </div>
   );
 };

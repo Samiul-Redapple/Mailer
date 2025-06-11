@@ -4,7 +4,7 @@ import Home from './pages/Home';
 function App() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-100">
-      <header className="bg-blue-600 text-white p-4 shadow-md">
+      <header className="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-50">
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold">AutoMailer</h1>
           <nav>
